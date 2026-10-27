@@ -61,6 +61,7 @@ export class KiosAPIProvider extends OpenAICompatProvider {
     options?: CompletionOptions, quotaContext?: QuotaObservationContext): AsyncGenerator<ChatCompletionChunk> {
     requireFree(modelId);
     let started = false;
+    let preambleBytes = 0;
     const preamble: ChatCompletionChunk[] = [];
     for await (const chunk of super.streamChatCompletion(apiKey, messages, modelId, options, quotaContext)) {
       if ('error' in chunk || !Array.isArray(chunk.choices)) throw upstreamError('returned a malformed stream event');
@@ -68,10 +69,13 @@ export class KiosAPIProvider extends OpenAICompatProvider {
       const normalized = { ...chunk, model: modelId };
       if (!started) {
         preamble.push(normalized);
+        preambleBytes += Buffer.byteLength(JSON.stringify(normalized));
         const usable = chunk.choices.some(c =>
           (typeof c.delta?.content === 'string' && c.delta.content.trim()) || c.delta?.tool_calls?.length);
         if (!usable) {
-          if (preamble.length >= 64) throw upstreamError('returned an empty stream preamble');
+          // Qwen emits hundreds of reasoning-only frames before its answer.
+          // Hold them for failover, with both byte and frame bounds.
+          if (preamble.length >= 1024 || preambleBytes > 256 * 1024) throw upstreamError('returned an excessive empty stream preamble');
           continue;
         }
         started = true;

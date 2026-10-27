@@ -68,6 +68,20 @@ describe('KiosAPI free routes', () => {
     await expect(p.streamChatCompletion('test', [], model).next()).rejects.toMatchObject({ status: 502 });
     await expect(p.chatCompletion('test', [], model)).resolves.toMatchObject({ model });
   });
+  it('buffers a long reasoning preamble without rejecting a valid Qwen answer', async () => {
+    const [requested, alias] = routes[1];
+    const reasoning = { ...frame('', alias), choices: [{ index: 0, delta: { reasoning_content: 'thinking' }, finish_reason: null }] };
+    vi.spyOn(global, 'fetch').mockResolvedValue(stream(...Array.from({ length: 100 }, () => reasoning), frame('42', alias)));
+    const chunks = [];
+    for await (const c of new KiosAPIProvider().streamChatCompletion('test', [], requested)) chunks.push(c);
+    expect(chunks.at(-1)?.choices[0].delta.content).toBe('42');
+    expect(chunks.every(c => c.model === requested)).toBe(true);
+  });
+  it('rejects an excessive reasoning-only preamble before yielding', async () => {
+    const reasoning = { ...frame(''), choices: [{ index: 0, delta: { reasoning_content: 'x'.repeat(270_000) }, finish_reason: null }] };
+    vi.spyOn(global, 'fetch').mockResolvedValue(stream(reasoning));
+    await expect(new KiosAPIProvider().streamChatCompletion('test', [], model).next()).rejects.toMatchObject({ status: 502 });
+  });
   it.each(['paid/model', '__proto__', '@cf/meta/llama-3.1-8b-instruct-fp8'])('rejects non-catalog free IDs: %s', async paid => {
     const fetch = vi.spyOn(global, 'fetch');
     const p = new KiosAPIProvider();
