@@ -70,6 +70,32 @@ describe('parseProviderReportedSize', () => {
     });
   });
 
+  describe('anthropic', () => {
+    it('extracts input tokens from prompt is too long', () => {
+      const msg = 'Anthropic API error 400: prompt is too long: 220000 tokens > 200000 maximum';
+      expect(parseProviderReportedSize('anthropic', msg)).toEqual({ tokens: 220000, kind: 'input' });
+    });
+  });
+
+  describe('google', () => {
+    it('extracts input tokens from input token count error', () => {
+      const msg = 'Google API error 400: The input token count (125432) exceeds the maximum allowed (32768)';
+      expect(parseProviderReportedSize('google', msg)).toEqual({ tokens: 125432, kind: 'input' });
+    });
+
+    it('extracts total tokens from total tokens error', () => {
+      const msg = 'Google API error 400: Total tokens (125432) exceeds context window (32768)';
+      expect(parseProviderReportedSize('google', msg)).toEqual({ tokens: 125432, kind: 'total' });
+    });
+  });
+
+  describe('openai', () => {
+    it('extracts input tokens from resulted in tokens error', () => {
+      const msg = "OpenAI API error 400: This model's maximum context length is 128000 tokens. However, your messages resulted in 145000 tokens.";
+      expect(parseProviderReportedSize('openai', msg)).toEqual({ tokens: 145000, kind: 'input' });
+    });
+  });
+
   describe('github', () => {
     it('returns null even though the body is parseable (limit only, not request size)', () => {
       // "Max size: 8000 tokens" is the LIMIT ceiling. Returning 8000 would

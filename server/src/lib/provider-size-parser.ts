@@ -55,6 +55,13 @@ const PATTERNS: Record<string, RegExp> = {
   // Fall back to the combined total from a 413 ("tokens (24092) exceeded
   // this model context") via the paren-anchored alternative.
   cloudflare: /(?:contains\s+at\s+least\s+([\d,]+)\s+input\s+tokens|tokens\s*\(([\d,]+)\s*\))/i,
+  // "prompt is too long: 220000 tokens > 200000 maximum"
+  anthropic: /prompt\s+is\s+too\s+long:\s*([\d,]+)\s*tokens/i,
+  // "The input token count (125432) exceeds the maximum allowed (32768)"
+  // or "Total tokens (125432) exceeds context window (32768)"
+  google: /(?:input\s+token\s+count|total\s+tokens)\s*\(([\d,]+)\)/i,
+  // "This model's maximum context length is 128000 tokens. However, your messages resulted in 145000 tokens."
+  openai: /(?:resulted\s+in|you\s+requested)\s+([\d,]+)\s+tokens/i,
 };
 
 export interface ProviderReportedSize {
@@ -73,6 +80,9 @@ export function parseProviderReportedSize(platform: string, message: string | nu
   const tokens = pullFirstInt(message, re);
   if (tokens == null) return null;
   const inputOnly = (platform === 'cloudflare' && /contains\s+at\s+least\s+[\d,]+\s+input\s+tokens/i.test(message))
-    || (platform === 'groq' && /input\s+tokens?\s*per\s*min|\bitpm\b/i.test(message));
+    || (platform === 'groq' && /input\s+tokens?\s*per\s*min|\bitpm\b/i.test(message))
+    || (platform === 'anthropic')
+    || (platform === 'google' && /input\s+token\s+count/i.test(message))
+    || (platform === 'openai' && /your\s+messages\s+resulted\s+in/i.test(message));
   return { tokens, kind: inputOnly ? 'input' : 'total' };
 }

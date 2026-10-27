@@ -27,3 +27,11 @@ it('adds the output reserve only to input observations', () => {
   state.observedInputTokens = 24000;
   expect(fallbackRoutingTokens(state, 4000, 256)).toBe(24256);
 });
+
+it('latches model contextWindow as floor when context error lacks reported token count (#1717)', () => {
+  const state = newFallbackState();
+  const error = Object.assign(new Error('Provider API error 413: Request Entity Too Large'), { status: 413 });
+  recordRetryableFailure({ platform: 'groq', modelId: 'test-model', modelDbId: -1, keyId: -1, contextWindow: 65536 } as any, error, state);
+  expect(state.observedInputTokens).toBe(65536);
+  expect(fallbackRoutingTokens(state, 4000, 256)).toBe(65536 + 256);
+});

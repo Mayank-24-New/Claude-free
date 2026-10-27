@@ -498,6 +498,15 @@ export function recordRetryableFailure(route: RouteResult, err: any, state: Fall
     if (reported != null) {
       const field = reported.kind === 'input' ? 'observedInputTokens' : 'observedTotalTokens';
       state[field] = Math.max(state[field] ?? 0, reported.tokens);
+    } else if (isContextTooLargeError(err)) {
+      // Issue #1717: Even when the provider error text does not quote an exact token count,
+      // a context_too_large rejection conclusively proves the request exceeds the failing
+      // model's context window. Latch this floor onto request state so the fallback router
+      // skips candidates with an equal or smaller window.
+      const floor = route.contextWindow;
+      if (typeof floor === 'number' && floor > 0) {
+        state.observedInputTokens = Math.max(state.observedInputTokens ?? 0, floor);
+      }
     }
   }
   state.skipKeys.add(`${route.platform}:${route.modelId}:${route.keyId}`);
