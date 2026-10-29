@@ -123,6 +123,14 @@ describe('decision service', () => {
     expect(calls(fn)).toHaveLength(1);
   });
 
+  it('reports extraction cooldown rather than claiming no key is installed', async () => {
+    seed('cloudflare', '@cf/cloudflare/clairic'); addKey('cloudflare', 'acct:tok');
+    const request = { state: 'Invoice $20', fields: { total: { type: 'number' as const } } };
+    mockFetch(() => json({ error: 'quota exceeded' }, 429, { 'retry-after': '60' }));
+    await expect(runDecision(request)).rejects.toMatchObject({ status: 429 });
+    await expect(runDecision(request)).rejects.toMatchObject({ status: 429, code: 'decision_keys_cooling_down' });
+  });
+
   it('calls Cloudflare ai/run with the account from the key and the short model selector', async () => {
     addKey('cloudflare', 'acct123:cf-token');
     const fn = mockFetch(() => json({ success: true, result: { model: 'clef-flash', answers: ANSWERS, usage: { input_tokens: 219, output_tokens: 0 } } }));

@@ -539,7 +539,7 @@ export async function runDecision(body: DecisionRequest | ExtractionRequest, opt
   }
 
   if (attempted === 0 && !lastError) {
-    if (decisionsAvailable()) {
+    if (chain.some(row => hasUsableKey(row.platform))) {
       throw new DecisionError(
         'Every decision key is cooling down (rate limited or rejected). Try again later.',
         429,
